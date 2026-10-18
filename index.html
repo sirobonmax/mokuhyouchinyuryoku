@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>当日目標値入力ツール</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter & Noto Sans JP -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+        /* スピナー（数値入力の矢印）を非表示にする */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen pb-12">
+
+    <!-- ヘッダー -->
+    <header class="bg-indigo-600 text-white shadow-md mb-6">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                <i class="fa-solid fa-clipboard-check text-indigo-200"></i>
+                当日目標値入力ツール
+            </h1>
+            <span id="currentDateBadge" class="text-xs bg-indigo-700 text-indigo-100 px-3 py-1.5 rounded-full font-medium">
+                <!-- 自動生成日付 -->
+            </span>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="max-w-4xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- 左カラム：入力フォーム -->
+        <section class="lg:col-span-7 bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80">
+            
+            <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                <h2 class="text-lg font-bold text-slate-700 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-indigo-500"></i>
+                    目標件数の入力
+                </h2>
+                <button id="resetBtn" class="text-xs text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 px-3 py-1.5 rounded-lg font-medium transition-colors duration-150 flex items-center gap-1">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    リセット
+                </button>
+            </div>
+
+            <!-- 日付調整（任意で変更も可能） -->
+            <div class="mb-5 bg-slate-50 p-3 rounded-xl border border-slate-200/60 flex items-center justify-between gap-2">
+                <label for="dateInput" class="text-sm font-semibold text-slate-600 shrink-0">日付:</label>
+                <input type="text" id="dateInput" class="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 w-full max-w-[200px] text-right focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <!-- 各種項目一覧 -->
+            <div id="itemsContainer" class="space-y-3">
+                <!-- JSで動的に追加されます -->
+            </div>
+
+        </section>
+
+        <!-- 右カラム：プレビュー＆コピー -->
+        <section class="lg:col-span-5 flex flex-col gap-4">
+            
+            <div class="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80 flex-1 flex flex-col">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-bold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-file-lines text-indigo-500"></i>
+                        出力プレビュー
+                    </h2>
+                    <span class="text-xs text-slate-400">リアルタイム更新</span>
+                </div>
+
+                <!-- テキストプレビューエリア -->
+                <div class="relative flex-1">
+                    <textarea id="outputArea" readonly class="w-full h-full min-h-[320px] p-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm leading-relaxed text-slate-800 focus:outline-none resize-none select-all"></textarea>
+                </div>
+
+                <!-- コピーボタン -->
+                <button id="copyBtn" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-md shadow-indigo-200 transition-all duration-150 flex items-center justify-center gap-2 text-base">
+                    <i class="fa-regular fa-copy text-lg"></i>
+                    <span>クリップボードにコピー</span>
+                </button>
+
+                <!-- コピー完了通知トースト -->
+                <div id="toast" class="hidden mt-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold rounded-xl text-center flex items-center justify-center gap-2 transition-all">
+                    <i class="fa-solid fa-circle-check text-emerald-500 text-base"></i>
+                    クリップボードにコピーしました！
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <script>
+        // 設定項目一覧データ
+        const itemKeys = [
+            { id: 'sim', label: 'SIM' },
+            { id: 'kakeho', label: '15分カケホ' },
+            { id: 'hogo', label: '最強保護' },
+            { id: 'unext', label: 'U-NEXT' },
+            { id: 'ansapo', label: '安サポ' },
+            { id: 'card', label: 'カード' },
+            { id: 'denki', label: 'でんき' },
+            { id: 'applecare', label: 'applecare' },
+            { id: 'nw', label: 'NW商材' },
+            { id: 'googlereview', label: 'googleレビュー' }
+        ];
+
+        // 状態保持
+        const state = {
+            dateStr: '',
+            counts: {}
+        };
+
+        // 初期化処理
+        function init() {
+            // 当日日付のフォーマット（xxxx年yy月zz日）
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            state.dateStr = `${year}年${month}月${day}日`;
+
+            // UI反映
+            document.getElementById('dateInput').value = state.dateStr;
+            document.getElementById('currentDateBadge').textContent = state.dateStr;
+
+            // 各項目の初期化 (0に設定)
+            itemKeys.forEach(item => {
+                state.counts[item.id] = 0;
+            });
+
+            // UIレンダリング
+            renderItems();
+            updateOutput();
+
+            // イベントリスナー設定
+            document.getElementById('dateInput').addEventListener('input', (e) => {
+                state.dateStr = e.target.value;
+                document.getElementById('currentDateBadge').textContent = e.target.value || '日付未設定';
+                updateOutput();
+            });
+
+            document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
+            document.getElementById('resetBtn').addEventListener('click', resetAll);
+        }
+
+        // 入力項目のUI生成
+        function renderItems() {
+            const container = document.getElementById('itemsContainer');
+            container.innerHTML = '';
+
+            itemKeys.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-2.5 bg-slate-50/80 hover:bg-slate-50 rounded-xl border border-slate-200/60 transition-colors';
+                
+                div.innerHTML = `
+                    <span class="font-semibold text-slate-700 text-sm sm:text-base pl-1">
+                        ${item.label}
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <!-- マイナスボタン -->
+                        <button type="button" onclick="adjustCount('${item.id}', -1)" class="w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-white border border-slate-300 active:bg-slate-200 text-slate-600 font-bold text-lg shadow-sm flex items-center justify-center transition-all touch-manipulation select-none">
+                            <i class="fa-solid fa-minus text-xs"></i>
+                        </button>
+                        
+                        <!-- 数値入力 -->
+                        <input type="number" id="input-${item.id}" min="0" value="${state.counts[item.id]}" oninput="onDirectInput('${item.id}', this.value)" class="w-14 sm:w-16 h-10 sm:h-11 border border-slate-300 rounded-lg text-center font-bold text-slate-800 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-inner">
+                        
+                        <!-- プラスボタン -->
+                        <button type="button" onclick="adjustCount('${item.id}', 1)" class="w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 border border-indigo-200 text-indigo-600 font-bold text-lg shadow-sm flex items-center justify-center transition-all touch-manipulation select-none">
+                            <i class="fa-solid fa-plus text-xs"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // プラス・マイナスボタン処理
+        function adjustCount(id, delta) {
+            let current = state.counts[id] || 0;
+            let updated = current + delta;
+            if (updated < 0) updated = 0; // 0未満にしない
+            
+            state.counts[id] = updated;
+            document.getElementById(`input-${id}`).value = updated;
+            updateOutput();
+        }
+
+        // 数値直接入力処理
+        function onDirectInput(id, value) {
+            let num = parseInt(value, 10);
+            if (isNaN(num) || num < 0) {
+                num = 0;
+            }
+            state.counts[id] = num;
+            updateOutput();
+        }
+
+        // テキスト出力の更新
+        function updateOutput() {
+            const template = `各種当日目標値
+${state.dateStr}
+
+SIM　${state.counts.sim}件
+15分カケホ　${state.counts.kakeho}件
+最強保護　${state.counts.hogo}件
+U-NEXT速　${state.counts.unext}件
+安サポ　${state.counts.ansapo}件
+カード　${state.counts.card}件
+でんき　${state.counts.denki}件
+applecare　${state.counts.applecare}件
+NW商材　${state.counts.nw}件
+googleレビュー　${state.counts.googlereview}件`;
+
+            document.getElementById('outputArea').value = template;
+        }
+
+        // クリップボードへコピー
+        function copyToClipboard() {
+            const textarea = document.getElementById('outputArea');
+            textarea.select();
+            textarea.setSelectionRange(0, 99999); // モバイル向け
+
+            try {
+                // コピー処理実行
+                document.execCommand('copy');
+
+                // トースト通知の表示
+                const toast = document.getElementById('toast');
+                toast.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    toast.classList.add('hidden');
+                }, 2500);
+            } catch (err) {
+                alert('コピーに失敗しました。テキストエリアを長押し・選択してコピーしてください。');
+            }
+        }
+
+        // リセット処理
+        function resetAll() {
+            itemKeys.forEach(item => {
+                state.counts[item.id] = 0;
+                const el = document.getElementById(`input-${item.id}`);
+                if (el) el.value = 0;
+            });
+            updateOutput();
+        }
+
+        // ページロード時初期化
+        window.onload = init;
+    </script>
+</body>
+</html>
